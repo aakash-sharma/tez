@@ -4524,7 +4524,7 @@ public class VertexImpl implements org.apache.tez.dag.app.dag.Vertex, EventHandl
   }
 
   @VisibleForTesting
-  VertexManager getVertexManager() {
+  public VertexManager getVertexManager() {
     return this.vertexManager;
   }
 

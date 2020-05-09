@@ -37,10 +37,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hadoop.util.StringUtils;
 import org.apache.tez.common.TezUtils;
+import org.apache.tez.dag.app.ContainerContext;
+import org.apache.tez.dag.app.dag.impl.VertexImpl;
+import org.apache.tez.dag.library.vertexmanager.ShuffleVertexManager;
 import org.apache.tez.serviceplugins.api.TaskScheduler;
 import org.apache.tez.serviceplugins.api.TaskSchedulerContext;
 import org.apache.tez.serviceplugins.api.TaskSchedulerContext.AMState;
 import org.apache.tez.serviceplugins.api.TaskSchedulerContext.AppFinalStatus;
+import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -199,6 +203,17 @@ public class YarnTaskSchedulerService extends TaskScheduler
     }
 
     public CookieContainerRequest(
+            Resource capability,
+            String[] hosts,
+            String[] racks,
+            Priority priority,
+            CRCookie cookie,
+            String nodeLabelExpression) {
+      super(capability, hosts, racks, priority, true, nodeLabelExpression);
+      this.cookie = cookie;
+    }
+
+    public CookieContainerRequest(
         Resource capability,
         ContainerId containerId,
         String[] hosts,
@@ -206,6 +221,18 @@ public class YarnTaskSchedulerService extends TaskScheduler
         Priority priority,
         CRCookie cookie) {
       this(capability, hosts, racks, priority, cookie);
+      this.affinitizedContainerId = containerId;
+    }
+
+    public CookieContainerRequest(
+            Resource capability,
+            ContainerId containerId,
+            String[] hosts,
+            String[] racks,
+            Priority priority,
+            CRCookie cookie,
+            String nodeLabelExpression) {
+      this(capability, hosts, racks, priority, cookie, nodeLabelExpression);
       this.affinitizedContainerId = containerId;
     }
 
@@ -951,7 +978,24 @@ public class YarnTaskSchedulerService extends TaskScheduler
       amRmClient.removeNodeFromBlacklist(nodeId);
     }
   }
-  
+
+  String getNodeLabel(Object containerSignature) {
+    String nodeLabelExpression = null;
+
+    if (containerSignature instanceof ContainerContext)
+    {
+      if (((ContainerContext)containerSignature).getVertex() instanceof VertexImpl)
+      {
+        if (((VertexImpl)((ContainerContext)containerSignature).getVertex()).getVertexManager().getPlugin() instanceof ShuffleVertexManager)
+        {
+          LOG.info("Setting node label expression to REDUCE");
+          nodeLabelExpression =  "REDUCE";
+        }
+      }
+    }
+    return nodeLabelExpression;
+  }
+
   @Override
   public synchronized void allocateTask(
       Object task,
@@ -965,9 +1009,13 @@ public class YarnTaskSchedulerService extends TaskScheduler
     // XXX Have ContainerContext implement an interface defined by TaskScheduler.
     // TODO check for nulls etc
     // TODO extra memory allocation
+    LOG.info("Aakash L1");
+    String nodeLabelExpression = getNodeLabel(containerSignature);
+
     CRCookie cookie = new CRCookie(task, clientCookie, containerSignature);
+
     CookieContainerRequest request = new CookieContainerRequest(
-      capability, hosts, racks, priority, cookie);
+              capability, hosts, racks, priority, cookie, nodeLabelExpression);
 
     addRequestAndTrigger(task, request, hosts, racks);
   }
@@ -981,6 +1029,8 @@ public class YarnTaskSchedulerService extends TaskScheduler
       Object containerSignature,
       Object clientCookie) {
 
+    LOG.info("Aakash L2");
+    String nodeLabelExpression = getNodeLabel(containerSignature);
     HeldContainer heldContainer = heldContainers.get(containerId);
     String[] hosts = null;
     String[] racks = null;
@@ -1002,7 +1052,7 @@ public class YarnTaskSchedulerService extends TaskScheduler
     
     CRCookie cookie = new CRCookie(task, clientCookie, containerSignature);
     CookieContainerRequest request = new CookieContainerRequest(
-      capability, containerId, hosts, racks, priority, cookie);
+      capability, containerId, hosts, racks, priority, cookie, nodeLabelExpression);
 
     addRequestAndTrigger(task, request, hosts, racks);
   }

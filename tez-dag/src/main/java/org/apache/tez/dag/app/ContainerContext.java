@@ -92,6 +92,8 @@ public class ContainerContext {
     return this.javaOpts;
   }
 
+  public Vertex getVertex() { return this.vertex; }
+
   /**
    * @return true if this ContainerContext is a super-set of the specified
    *         container context.
