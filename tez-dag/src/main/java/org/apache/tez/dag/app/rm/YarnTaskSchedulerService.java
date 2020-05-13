@@ -979,8 +979,8 @@ public class YarnTaskSchedulerService extends TaskScheduler
     }
   }
 
-  String getNodeLabel(Object containerSignature) {
-    String nodeLabelExpression = null;
+  boolean getNodeLabel(Object containerSignature) {
+    boolean isReduce = false;
 
     if (containerSignature instanceof ContainerContext)
     {
@@ -989,11 +989,11 @@ public class YarnTaskSchedulerService extends TaskScheduler
         if (((VertexImpl)((ContainerContext)containerSignature).getVertex()).getVertexManager().getPlugin() instanceof ShuffleVertexManager)
         {
           LOG.info("Setting node label expression to REDUCE");
-          nodeLabelExpression =  "REDUCE";
+          isReduce =  true;
         }
       }
     }
-    return nodeLabelExpression;
+    return isReduce;
   }
 
   @Override
@@ -1010,13 +1010,24 @@ public class YarnTaskSchedulerService extends TaskScheduler
     // TODO check for nulls etc
     // TODO extra memory allocation
     LOG.info("Aakash L1");
-    String nodeLabelExpression = getNodeLabel(containerSignature);
+//    String nodeLabelExpression = getNodeLabel(containerSignature);
 
     CRCookie cookie = new CRCookie(task, clientCookie, containerSignature);
+    CookieContainerRequest request;
 
-    CookieContainerRequest request = new CookieContainerRequest(
-              capability, hosts, racks, priority, cookie, nodeLabelExpression);
+      if (getNodeLabel(containerSignature)) {
+      LOG.info("Aakash L2");
 
+      request = new CookieContainerRequest(
+              capability, hosts, racks, priority, cookie, "REDUCE");
+    }
+    else
+    {
+      LOG.info("Aakash L3");
+      request = new CookieContainerRequest(
+              capability, hosts, racks, priority, cookie);
+
+    }
     addRequestAndTrigger(task, request, hosts, racks);
   }
   
@@ -1029,8 +1040,8 @@ public class YarnTaskSchedulerService extends TaskScheduler
       Object containerSignature,
       Object clientCookie) {
 
-    LOG.info("Aakash L2");
-    String nodeLabelExpression = getNodeLabel(containerSignature);
+    LOG.info("Aakash L4");
+    //boolean isReduce = getNodeLabel(containerSignature);
     HeldContainer heldContainer = heldContainers.get(containerId);
     String[] hosts = null;
     String[] racks = null;
@@ -1051,8 +1062,19 @@ public class YarnTaskSchedulerService extends TaskScheduler
     }
     
     CRCookie cookie = new CRCookie(task, clientCookie, containerSignature);
-    CookieContainerRequest request = new CookieContainerRequest(
-      capability, containerId, hosts, racks, priority, cookie, nodeLabelExpression);
+    CookieContainerRequest request;
+
+    if (getNodeLabel(containerSignature)){
+      request = new CookieContainerRequest(
+              capability, containerId, hosts, racks, priority, cookie, "REDUCE");
+      LOG.info("Aakash L5");
+    }
+    else
+    {
+      request = new CookieContainerRequest(
+        capability, containerId, hosts, racks, priority, cookie);
+      LOG.info("Aakash L6");
+    }
 
     addRequestAndTrigger(task, request, hosts, racks);
   }
